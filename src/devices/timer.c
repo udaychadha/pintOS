@@ -187,6 +187,7 @@ timer_interrupt (struct intr_frame *args UNUSED)
   ticks++;
   thread_tick ();
   struct list_elem *sleep_list_elem = list_begin(&sleeping_list);
+  bool priority_check = false;
   while(sleep_list_elem != list_end(&sleeping_list))
   {
     struct thread *thread_to_unblock = list_entry(sleep_list_elem, 
@@ -198,9 +199,11 @@ timer_interrupt (struct intr_frame *args UNUSED)
     list_remove(sleep_list_elem);
     //unblocking the thread that had been blocked
     thread_unblock(thread_to_unblock);
-
+    priority_check = true;
     sleep_list_elem = list_begin(&sleeping_list);
   }
+  if(priority_check)
+    intr_yield_on_return();
 }
 
 /* Returns true if LOOPS iterations waits for more than one timer

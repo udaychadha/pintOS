@@ -4,6 +4,7 @@
 #include <debug.h>
 #include <list.h>
 #include <stdint.h>
+#include "synch.h"
 
 /* States in a thread's life cycle. */
 enum thread_status
@@ -23,6 +24,8 @@ typedef int tid_t;
 #define PRI_MIN 0                       /* Lowest priority. */
 #define PRI_DEFAULT 31                  /* Default priority. */
 #define PRI_MAX 63                      /* Highest priority. */
+
+#define PRI_MAX_DEPTH 9
 
 /* A kernel thread or user process.
 
@@ -97,6 +100,10 @@ struct thread
       the ticks until the thread will sleep.*/
     int64_t sleep_for_ticks;
 
+    int initial_priority;       
+    struct list acquired_locks;
+    struct lock *waiting_on;
+
 #ifdef USERPROG
     /* Owned by userprog/process.c. */
     uint32_t *pagedir;                  /* Page directory. */
@@ -146,5 +153,15 @@ int thread_get_load_avg (void);
 bool compare_ticks (const struct list_elem* a,
                     const struct list_elem* b,
                      void* aux UNUSED);
+bool compare_priority(const struct list_elem* a,
+                      const struct list_elem* b,
+                      void* aux UNUSED);
 
+void add_lock(struct lock*);
+void remove_lock(struct lock*);
+
+void donate_priority(struct thread*);
+void update_priority(struct thread*);
+
+void yield_if_low_priority(void);
 #endif /* threads/thread.h */

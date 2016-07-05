@@ -15,9 +15,14 @@ Uday Chadha  <uchadha@usc.edu>
 >> If you have any preliminary comments on your submission, notes for the
 >> TAs, or extra credit, please give them here.
 
+Some tests are not passing. If possible, please look at their outputs and provide
+with partial credit if justified.
+
 >> Please cite any offline or online sources you consulted while
 >> preparing your submission, other than the Pintos documentation, course
 >> text, lecture notes, and course staff.
+Referred to these slides as well.
+http://web.stanford.edu/class/archive/cs/cs140/cs140.1088/misc/project1-sum08.pdf
 
 			     ALARM CLOCK
 			     ===========
@@ -28,26 +33,42 @@ Uday Chadha  <uchadha@usc.edu>
 >> `struct' member, global or static variable, `typedef', or
 >> enumeration.  Identify the purpose of each in 25 words or less.
 
+(timer.c) static struc sleeping_list - It is a list of all the threads that are sleeping.
+(thread.h) int_64_t sleep_for_ticks - Used to store the ticks until the thread will sleep.
+
+
 ---- ALGORITHMS ----
 
 >> A2: Briefly describe what happens in a call to timer_sleep(),
 >> including the effects of the timer interrupt handler.
 
+-there is a check to see if the ticks are valid i.e > 0.
+-sleep_for_ticks is determined by adding number of ticks it should sleep for to OS ticks
+-adds the current thread to the sleeping_list. The list is kept in sorted order of ticks.
+-thread is blocked
+
+
 >> A3: What steps are taken to minimize the amount of time spent in
 >> the timer interrupt handler?
 
+-the list of sleeping threads is kept in a sorted order of ticks. Therefore, the interrupt handler doe not have to spend too much time in finding the next thread to wake up.
 ---- SYNCHRONIZATION ----
 
 >> A4: How are race conditions avoided when multiple threads call
 >> timer_sleep() simultaneously?
+-Whenever we travel across the data structures that are declared for this function, the interrupts are turned off which translates to no race conditions during read/write.
 
 >> A5: How are race conditions avoided when a timer interrupt occurs
 >> during a call to timer_sleep()?
+Interrupts are disabled right after we check for the valid number of ticks. This makes sure that there are no race conditions between timer_sleep and timer_interrupt.
+
 
 ---- RATIONALE ----
 
 >> A6: Why did you choose this design?  In what ways is it superior to
 >> another design you considered?
+I initially thought of this design. I just made one modification while coding, which was that I kept the sleeping_list sorted using threads. I did this after conferring it with professor Shindler.
+
 
 			 PRIORITY SCHEDULING
 			 ===================
@@ -57,32 +78,63 @@ Uday Chadha  <uchadha@usc.edu>
 >> B1: Copy here the declaration of each new or changed `struct' or
 >> `struct' member, global or static variable, `typedef', or
 >> enumeration.  Identify the purpose of each in 25 words or less.
+(thread.h)
+		- int initial_priority: base priority without donation
+		- struct lock* wait_on: The lock the the thread is waiting on
+		- struct acquired_locks: The locks that the thread has acquired
+
+
 
 >> B2: Explain the data structure used to track priority donation.
 >> Use ASCII art to diagram a nested donation.  (Alternately, submit a
 >> .png file.)
 
+A, B, C are locks
+H1, H2, M, L are threads
+
+    A
+H1 ---> 
+    
+	B      C
+H2 ---> M ---> L
+    
+
+M's donation list: H1, H2
+L's donation list: M
+
+M's wait on lock: C
+L's wait on lock: NULL
+
+M's current donated priority is max(H1, H2, M).
+L's current donated priority is max(L, M).
+
 ---- ALGORITHMS ----
 
 >> B3: How do you ensure that the highest priority thread waiting for
 >> a lock, semaphore, or condition variable wakes up first?
+- the waiting list of the lock is ordered based on priority therefore it wakes up first..
 
 >> B4: Describe the sequence of events when a call to lock_acquire()
 >> causes a priority donation.  How is nested donation handled?
+- First we check if the lock is held by some other thread and if so then then this thread is added to the waiting list. Nested donation is handled in a while loop which runs until the max depth is reached or until the thread priority > max_priority of the lock.
 
 >> B5: Describe the sequence of events when lock_release() is called
 >> on a lock that a higher-priority thread is waiting for.
+- The lock holder is changed to NULL value.
+- It then calls sema_up.
 
 ---- SYNCHRONIZATION ----
 
 >> B6: Describe a potential race in thread_set_priority() and explain
 >> how your implementation avoids it.  Can you use a lock to avoid
 >> this race?
+A potential race condition can occur while tryint to set the priority for the thread. If another thread is donated AFTER the max priority from the previous donation was already calculated. We avoid this race condition by disabling interupts.
 
 ---- RATIONALE ----
 
 >> B7: Why did you choose this design?  In what ways is it superior to
 >> another design you considered?
+I tried to be economincal with the number of new variables that I added. So firstly, I replaced the push_back commands with list_insert_ordered() commands since it made it easier to keep track of the priorities without much hassle. I did not consider other designs but I think I should have since not being able to run all the test cases is not the optimal result.
 
 			  ADVANCED SCHEDULER
 			  ==================
@@ -101,18 +153,18 @@ Uday Chadha  <uchadha@usc.edu>
 >> thread after each given number of timer ticks:
 
 timer  recent_cpu    priority   thread
-ticks   A   B   C   A   B   C   to run
------  --  --  --  --  --  --   ------
- 0
- 4
- 8
-12
-16
-20
-24
-28
-32
-36
+ticks   A   B   C   A   B   C   to run    ready list
+-----  --  --  --  --  --  --   ------    ----------
+ 0     
+ 4     
+ 8     
+12     
+16     
+20     
+24     
+28     
+32     
+36    
 
 >> C3: Did any ambiguities in the scheduler specification make values
 >> in the table uncertain?  If so, what rule did you use to resolve
